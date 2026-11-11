@@ -6,7 +6,7 @@ import type { CompressLevel, Progress, SourceFile } from "./types";
 export const LEVELS: Record<CompressLevel, { maxSide: number; quality: number }> = {
   extreme: { maxSide: 1200, quality: 0.5 },
   recommended: { maxSide: 1800, quality: 0.7 },
-  less: { maxSide: 2600, quality: 0.85 },
+  less: { maxSide: 2600, quality: 0.8 },
 };
 
 export type Recoded = { bytes: Uint8Array; width: number; height: number };

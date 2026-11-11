@@ -23,6 +23,8 @@ const eslintConfig = [
       "public/pdf.worker.min.mjs",
       "e2e/.results/**",
       "e2e/.report/**",
+      "e2e/.results/**",
+      "e2e/.report/**",
     ],
   },
 ];

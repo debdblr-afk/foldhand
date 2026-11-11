@@ -56,3 +56,7 @@ next-env.d.ts
 # copied from pdfjs-dist on install
 /public/pdf.worker.min.mjs
 /.next-build/
+
+# playwright
+/e2e/.results/
+/e2e/.report/

@@ -13,7 +13,7 @@ const linkClass = "text-xs uppercase tracking-[.02em] hover:text-accent transiti
 export function TopNav({ current }: { current?: ToolSlug }) {
   const [open, setOpen] = useState(false);
   return (
-    <header className="sticky top-0 z-30 border-b border-border bg-surface">
+    <header onKeyDown={(e) => { if (e.key === "Escape") setOpen(false); }} className="sticky top-0 z-30 border-b border-border bg-surface">
       <div className="mx-auto flex h-[60px] max-w-page items-center gap-6 px-4 md:px-6">
         <Link href="/" className="flex items-center gap-2 text-lg">
           <span className="grid size-8 place-items-center rounded-md bg-accent text-on-accent"><FileStack aria-hidden className="size-5" /></span>
@@ -41,7 +41,6 @@ export function TopNav({ current }: { current?: ToolSlug }) {
         <nav
           id="all-tools"
           aria-label="All tools"
-          onKeyDown={(e) => e.key === "Escape" && setOpen(false)}
           className="absolute inset-x-0 top-full border-b border-border bg-surface shadow-raised"
         >
           <ul className="mx-auto grid max-w-page grid-cols-1 gap-1 p-4 sm:grid-cols-2 md:grid-cols-4 md:px-6">

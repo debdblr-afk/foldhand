@@ -194,8 +194,13 @@ function NumbersPanel({ value, onChange, error }: OptionsProps<PageNumberOptions
   );
 }
 
+const WM_EMPTY = "Type the text to stamp.";
+const WM_LETTERS = "That text has letters this tool cannot print yet. Use English letters, numbers and common symbols.";
+// What the built-in font can print: basic and Western European letters, plus a few common marks.
+const PRINTABLE = /^[\u0020-\u007e\u00a1-\u00ff\u2013\u2014\u2018\u2019\u201c\u201d\u2022\u2026\u20ac\u2122]*$/;
+
 function WatermarkPanel({ value, onChange, error }: OptionsProps<WatermarkOptions>) {
-  const textError = error && !/page|range|number/i.test(error) ? error : null;
+  const textError = error === WM_EMPTY || error === WM_LETTERS ? error : null;
   return (
     <>
       <TextField label="Text" placeholder="DRAFT" maxLength={60} value={value.text} onChange={(e) => onChange({ ...value, text: e.target.value })} error={textError} />
@@ -251,7 +256,7 @@ const watermarkTool: ToolConfig<"watermark"> = {
   doneHeadline: (n) => (n === 1 ? "Your watermarked PDF is ready" : `Your ${n} watermarked PDFs are ready`), zipName: "watermarked.zip", next: ["protect", "compress", "merge"],
   panelTitle: "Watermark options", initial: { text: "", position: { vertical: "middle", horizontal: "center" }, angle: 45, strength: "medium", size: "large", color: "grey", pages: "" },
   Options: WatermarkPanel,
-  check: (o, files) => (!o.text.trim() ? "Type the text to stamp." : checkPages(o.pages, files)),
+  check: (o, files) => (!o.text.trim() ? WM_EMPTY : !PRINTABLE.test(o.text.trim()) ? WM_LETTERS : checkPages(o.pages, files)),
 };
 
 const protect: ToolConfig<"protect"> = {

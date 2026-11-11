@@ -1,5 +1,6 @@
 "use client";
 
+import type { PointerEventHandler } from "react";
 import { useCallback, useEffect, useRef, useState, type DragEvent } from "react";
 import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
 import { SortableContext, arrayMove, rectSortingStrategy, sortableKeyboardCoordinates, useSortable } from "@dnd-kit/sortable";
@@ -38,7 +39,7 @@ type PageTileProps = {
 };
 
 function PageTile({ page, label, position, total, load, cached, onRemove, onRotate, onInsertAfter }: PageTileProps) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: page.id });
+  const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({ id: page.id });
   const [url, setUrl] = useState(cached);
   const node = useRef<HTMLLIElement | null>(null);
 
@@ -60,13 +61,9 @@ function PageTile({ page, label, position, total, load, cached, onRemove, onRota
   return (
     <FileTile
       itemRef={(el) => { node.current = el; setNodeRef(el); }}
-      itemProps={{
-        ...attributes,
-        ...listeners,
-        style: { transform: CSS.Translate.toString(transform), transition },
-        "aria-label": `${label}, position ${position} of ${total}`,
-        "aria-roledescription": "sortable page",
-      }}
+      itemProps={{ onPointerDown: listeners?.onPointerDown as PointerEventHandler<HTMLLIElement> | undefined, style: { transform: CSS.Translate.toString(transform), transition } }}
+      handleRef={setActivatorNodeRef}
+      handleProps={{ ...attributes, ...listeners, "aria-label": `Move ${label}, position ${position} of ${total}` }}
       name={label}
       meta={`Position ${position}`}
       rotation={page.rotation}
@@ -115,7 +112,9 @@ export function OrganizeWorkspace() {
       const pdf = await openPdf(file);
       setOpening((n) => n - 1);
       if (pdf.status !== "ready") {
-        problem = explain(pdf.status === "locked" ? "locked-file" : "damaged-file", file.name).replace(" Remove it and try again.", " It was not added.");
+        problem = pdf.status === "locked"
+          ? `${file.name} is locked with a password, so it was not added. Unlock it first with "Remove a password".`
+          : `${file.name} is damaged and could not be opened, so it was not added.`;
         continue;
       }
       const id = crypto.randomUUID();
@@ -278,7 +277,7 @@ export function OrganizeWorkspace() {
         <h2 className="text-lg">Your new file</h2>
         <p className="text-sm text-text-muted">Drag pages to move them. Each page has buttons to turn it, delete it, or add a blank page after it.</p>
         <p className="tabnums text-sm text-text-muted">{plural(pages.length, "page")}{several ? ` from ${plural(files.length, "file")}` : ""}</p>
-        {action("mt-auto hidden w-full md:inline-flex", "lg")}
+        <div className="mt-auto hidden md:block">{action("w-full", "lg")}</div>
       </aside>
 
       <div className="fixed inset-x-0 bottom-0 z-20 flex h-[76px] items-center gap-3 border-t border-border bg-surface px-4 md:hidden">

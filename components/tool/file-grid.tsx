@@ -1,5 +1,6 @@
 "use client";
 
+import type { PointerEventHandler } from "react";
 import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
 import { SortableContext, arrayMove, rectSortingStrategy, sortableKeyboardCoordinates, useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
@@ -18,18 +19,16 @@ type Props = {
 };
 
 function Tile({ file, index, total, sortable, onRemove, onRotate, onUnlock }: { file: InputFile; index: number; total: number } & Pick<Props, "sortable" | "onRemove" | "onRotate" | "onUnlock">) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: file.id, disabled: !sortable });
+  const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({ id: file.id, disabled: !sortable });
   const meta = file.pageCount === null ? formatBytes(file.size) : `${plural(file.pageCount, "page")} · ${formatBytes(file.size)}`;
   return (
     <FileTile
       itemRef={setNodeRef}
-      itemProps={sortable ? {
-        ...attributes,
-        ...listeners,
-        style: { transform: CSS.Translate.toString(transform), transition },
-        "aria-label": `${file.name}, position ${index + 1} of ${total}`,
-        "aria-roledescription": "sortable file",
-      } : undefined}
+      // The whole tile can be dragged with a pointer; the "Move" button is the keyboard way in. Only the
+      // button gets the key listener: with it on both, one key press reached the drag code twice.
+      itemProps={sortable ? { onPointerDown: listeners?.onPointerDown as PointerEventHandler<HTMLLIElement> | undefined, style: { transform: CSS.Translate.toString(transform), transition } } : undefined}
+      handleRef={setActivatorNodeRef}
+      handleProps={sortable ? { ...attributes, ...listeners, "aria-label": `Move ${file.name}, position ${index + 1} of ${total}` } : undefined}
       name={file.name}
       meta={meta}
       rotation={file.rotation}

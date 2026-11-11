@@ -10,7 +10,9 @@
     "tokens": "python3 ../replica-ilovepdf/design/build_tokens.py app/styles",
     "postinstall": "mkdir -p public && cp node_modules/pdfjs-dist/build/pdf.worker.min.mjs public/pdf.worker.min.mjs",
     "test": "vitest run",
-    "build:check": "NEXT_DIST_DIR=.next-build next build"
+    "build:check": "NEXT_DIST_DIR=.next-build next build",
+    "e2e": "playwright test --project=desktop --project=phone",
+    "e2e:safari": "playwright test --project=safari"
   },
   "dependencies": {
     "@cantoo/pdf-lib": "^2.11.1",
@@ -26,7 +28,9 @@
     "react-dom": "19.1.0"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.14.0",
     "@eslint/eslintrc": "^3",
+    "@playwright/test": "^1.65.0",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",

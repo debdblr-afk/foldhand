@@ -35,8 +35,9 @@ export function ToolWorkspace({ slug }: { slug: ToolSlug }) {
   // The password prompt (S07): which locked file is being asked about, and what went wrong last time.
   const [prompt, setPrompt] = useState<{ id: string; error: string | null; busy: boolean } | null>(null);
   const [typed, setTyped] = useState("");
+  const [focusError, setFocusError] = useState(0);
   const picker = useRef<HTMLInputElement>(null);
-  const panel = useRef<HTMLDivElement>(null);
+  const panel = useRef<HTMLFormElement>(null);
   // Every preview URL made in this session, so they can all be released.
   const urls = useRef(new Set<string>());
 
@@ -44,6 +45,11 @@ export function ToolWorkspace({ slug }: { slug: ToolSlug }) {
     const made = urls.current;
     return () => made.forEach((u) => URL.revokeObjectURL(u));
   }, []);
+
+  // Take the person to the field that needs fixing. This runs after the field has been marked invalid.
+  useEffect(() => {
+    if (focusError) panel.current?.querySelector<HTMLElement>("[aria-invalid=true]")?.focus();
+  }, [focusError]);
 
   const skipped = (n: number) => ({ tone: "danger" as const, text: `${n === 1 ? "One file was" : `${n} files were`} skipped. This tool takes ${config.acceptLabel}.` });
 
@@ -117,8 +123,7 @@ export function ToolWorkspace({ slug }: { slug: ToolSlug }) {
     const problem = config.check?.(options, files) ?? null;
     setOptionError(problem);
     if (problem) {
-      // Take the person to the field that needs fixing.
-      panel.current?.querySelector<HTMLElement>("[aria-invalid=true], input")?.focus();
+      setFocusError((n) => n + 1);
       return;
     }
     setNotice(null);
@@ -174,8 +179,8 @@ export function ToolWorkspace({ slug }: { slug: ToolSlug }) {
   const Options = config.Options;
   const ActionIcon = config.ActionIcon;
   const summary = `${plural(files.length, config.kind === "image" ? "image" : "file")}${pages ? ` · ${plural(pages, "page")}` : ""}`;
-  const action = (className: string, iconSize: string) => (
-    <Button size={className.includes("h-12") ? "md" : "lg"} className={className} loading={reading} icon={<ActionIcon aria-hidden className={iconSize} />} onClick={run}>{config.actionLabel}</Button>
+  const action = (size: "md" | "lg", className: string) => (
+    <Button size={size} className={className} loading={reading} icon={<ActionIcon aria-hidden className={size === "lg" ? "size-6" : "size-5"} />} onClick={run}>{config.actionLabel}</Button>
   );
 
   return (
@@ -218,18 +223,19 @@ export function ToolWorkspace({ slug }: { slug: ToolSlug }) {
         <h2 className="text-lg">{config.panelTitle}</h2>
         {config.panelHint && <p className="text-sm text-text-muted">{config.panelHint}</p>}
         {Options && (
-          <form ref={panel as never} className="flex flex-col gap-5" onSubmit={(e) => { e.preventDefault(); run(); }}>
+          <form ref={panel} className="flex flex-col gap-5" onSubmit={(e) => { e.preventDefault(); run(); }}>
             <Options value={options} onChange={(value: typeof options) => { setOptions(value); setOptionError(null); }} files={files} error={optionError} />
           </form>
         )}
         <p className="tabnums text-sm text-text-muted">{summary}</p>
-        {action("mt-auto hidden w-full md:inline-flex", "size-6")}
+        {/* Desktop only. The wrapper does the hiding: the button's own display class would win over "hidden". */}
+        <div className="mt-auto hidden md:block">{action("lg", "w-full")}</div>
       </aside>
 
       {/* On phones the main button stays under the thumb. */}
       <div className="fixed inset-x-0 bottom-0 z-20 flex h-[76px] items-center gap-3 border-t border-border bg-surface px-4 md:hidden">
         <span className="tabnums text-sm text-text-muted">{plural(files.length, config.kind === "image" ? "image" : "file")}</span>
-        {action("h-12 flex-1", "size-5")}
+        {action("md", "h-12 flex-1")}
       </div>
 
       <Modal
