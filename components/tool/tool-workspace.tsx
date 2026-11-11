@@ -4,7 +4,8 @@ import { useCallback, useEffect, useRef, useState, type DragEvent } from "react"
 import { ArrowDownAZ, ArrowUpZA, Plus } from "lucide-react";
 import { Button, IconButton } from "@/components/ui/button";
 import { Dropzone } from "@/components/ui/dropzone";
-import { Alert } from "@/components/ui/feedback";
+import { Alert, Modal } from "@/components/ui/feedback";
+import { TextField } from "@/components/ui/fields";
 import { cn } from "@/lib/cn";
 import { plural } from "@/lib/format";
 import { runTool } from "@/lib/pdf/client";
@@ -31,6 +32,9 @@ export function ToolWorkspace({ slug }: { slug: ToolSlug }) {
   const [optionError, setOptionError] = useState<string | null>(null);
   const [notice, setNotice] = useState<{ tone: "info" | "danger"; text: string } | null>(null);
   const [dragOver, setDragOver] = useState(false);
+  // The password prompt (S07): which locked file is being asked about, and what went wrong last time.
+  const [prompt, setPrompt] = useState<{ id: string; error: string | null; busy: boolean } | null>(null);
+  const [typed, setTyped] = useState("");
   const picker = useRef<HTMLInputElement>(null);
   const panel = useRef<HTMLDivElement>(null);
   // Every preview URL made in this session, so they can all be released.
@@ -53,7 +57,7 @@ export function ToolWorkspace({ slug }: { slug: ToolSlug }) {
       const isImage = config.kind === "image";
       const thumbnailUrl = isImage ? URL.createObjectURL(file) : null;
       if (thumbnailUrl) urls.current.add(thumbnailUrl);
-      return { id: crypto.randomUUID(), file, name: file.name, size: file.size, kind: config.kind, pageCount: null, rotation: 0, status: isImage ? "ready" : "reading", thumbnailUrl };
+      return { id: crypto.randomUUID(), file, name: file.name, size: file.size, kind: config.kind, pageCount: null, rotation: 0, status: isImage ? "ready" : "reading", password: null, thumbnailUrl };
     });
     setFiles((current) => (config.multiple ? [...current, ...added] : added));
     setOptionError(null);
@@ -64,6 +68,8 @@ export function ToolWorkspace({ slug }: { slug: ToolSlug }) {
         const { status, pageCount, thumbnail } = await inspect(item.file);
         // If the file was removed while it was being read, these updates find nothing and are dropped.
         setFiles((current) => current.map((f) => (f.id === item.id ? { ...f, status, pageCount } : f)));
+        // Ask for the password of the first locked file straight away; the rest wait their turn.
+        if (status === "locked") setPrompt((open) => open ?? { id: item.id, error: null, busy: false });
         thumbnail.then((thumbnailUrl) => {
           if (!thumbnailUrl) return;
           urls.current.add(thumbnailUrl);
@@ -80,12 +86,34 @@ export function ToolWorkspace({ slug }: { slug: ToolSlug }) {
   const sort = (direction: 1 | -1) =>
     setFiles((current) => [...current].sort((a, b) => direction * a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" })));
 
+  async function submitPassword() {
+    const target = files.find((f) => f.id === prompt?.id);
+    if (!target || !prompt) return setPrompt(null);
+    setPrompt({ ...prompt, busy: true, error: null });
+    // The password is checked by really opening the file with it.
+    const { status, pageCount, thumbnail } = await inspect(target.file, typed);
+    if (status !== "ready") return setPrompt({ id: target.id, busy: false, error: typed ? "That password did not open the file. Check it and try again." : "Type the password for this file." });
+    setFiles((current) => current.map((f) => (f.id === target.id ? { ...f, status, pageCount, password: typed } : f)));
+    thumbnail.then((thumbnailUrl) => {
+      if (!thumbnailUrl) return;
+      urls.current.add(thumbnailUrl);
+      setFiles((current) => current.map((f) => (f.id === target.id ? { ...f, thumbnailUrl } : f)));
+    });
+    setTyped("");
+    setNotice(null);
+    const next = files.find((f) => f.status === "locked" && f.id !== target.id);
+    setPrompt(next ? { id: next.id, error: null, busy: false } : null);
+  }
+
+  const askFor = (id: string) => { setTyped(""); setPrompt({ id, error: null, busy: false }); };
+
   const reading = files.some((f) => f.status === "reading");
   const blocked = files.find((f) => f.status === "locked" || f.status === "damaged");
 
   async function run() {
     if (files.length < config.minFiles) return setNotice({ tone: "info", text: config.minFiles > 1 ? explain("too-few-files") : "Add a file first." });
-    if (blocked) return setNotice({ tone: "danger", text: explain(blocked.status === "locked" ? "locked-file" : "damaged-file", blocked.name) });
+    if (blocked?.status === "locked") return askFor(blocked.id);
+    if (blocked) return setNotice({ tone: "danger", text: explain("damaged-file", blocked.name) });
     const problem = config.check?.(options, files) ?? null;
     setOptionError(problem);
     if (problem) {
@@ -94,7 +122,7 @@ export function ToolWorkspace({ slug }: { slug: ToolSlug }) {
       return;
     }
     setNotice(null);
-    const error = await task.start((onProgress) => runTool(config.slug, files, options, onProgress));
+    const error = await task.start((onProgress) => (config.run ? config.run(files, options, onProgress) : runTool(config.slug, files, options, onProgress)));
     if (error) setNotice({ tone: "danger", text: error });
   }
 
@@ -103,6 +131,7 @@ export function ToolWorkspace({ slug }: { slug: ToolSlug }) {
     setOptions(config.initial);
     setOptionError(null);
     setNotice(null);
+    setPrompt(null);
     task.reset();
   }
 
@@ -182,7 +211,7 @@ export function ToolWorkspace({ slug }: { slug: ToolSlug }) {
             : <Button size="sm" variant="outline" onClick={() => picker.current?.click()}>Choose another file</Button>}
         </div>
         {notice && <Alert tone={notice.tone}>{notice.text}</Alert>}
-        <FileGrid files={files} sortable={config.ordered} onReorder={setFiles} onRemove={remove} onRotate={config.slug === "compress" ? undefined : rotate} />
+        <FileGrid files={files} sortable={config.ordered} onReorder={setFiles} onRemove={remove} onRotate={config.rotatable ? rotate : undefined} onUnlock={askFor} />
       </section>
 
       <aside className="flex shrink-0 flex-col gap-5 border-t border-border bg-surface p-4 pb-28 md:w-[340px] md:border-l md:border-t-0 md:p-6">
@@ -202,6 +231,21 @@ export function ToolWorkspace({ slug }: { slug: ToolSlug }) {
         <span className="tabnums text-sm text-text-muted">{plural(files.length, config.kind === "image" ? "image" : "file")}</span>
         {action("h-12 flex-1", "size-5")}
       </div>
+
+      <Modal
+        open={!!prompt}
+        onOpenChange={(open) => { if (!open) { setPrompt(null); setTyped(""); } }}
+        title="This file is locked"
+        description={`Type the password for ${files.find((f) => f.id === prompt?.id)?.name ?? "this file"} to open it. The password stays on this device.`}
+      >
+        <form className="flex flex-col gap-4" onSubmit={(e) => { e.preventDefault(); submitPassword(); }}>
+          <TextField label="Password" type="password" autoComplete="off" autoFocus value={typed} onChange={(e) => setTyped(e.target.value)} error={prompt?.error} />
+          <div className="flex justify-end gap-2">
+            <Button variant="ghost" onClick={() => { setPrompt(null); setTyped(""); }}>Not now</Button>
+            <Button type="submit" loading={prompt?.busy}>Open file</Button>
+          </div>
+        </form>
+      </Modal>
 
       <div aria-hidden className={cn("pointer-events-none absolute inset-2 z-30 grid place-items-center rounded-xl border-2 border-dashed border-accent bg-dropzone-active text-lg text-accent transition-opacity duration-(--t-motion-fast)", dragOver ? "opacity-100" : "opacity-0")}>
         Drop to add

@@ -120,7 +120,7 @@ export function OrganizeWorkspace() {
       }
       const id = crypto.randomUUID();
       docs.current.set(id, pdf);
-      setFiles((current) => [...current, { id, file, name: file.name, size: file.size, kind: "pdf", pageCount: pdf.pageCount, rotation: 0, status: "ready", thumbnailUrl: null }]);
+      setFiles((current) => [...current, { id, file, name: file.name, size: file.size, kind: "pdf", pageCount: pdf.pageCount, rotation: 0, status: "ready", password: null, thumbnailUrl: null }]);
       setPages((current) => [...current, ...Array.from({ length: pdf.pageCount }, (_, pageIndex) => ({ id: crypto.randomUUID(), fileId: id, pageIndex, rotation: 0 as Rotation }))]);
     }
     setNotice(problem ? { tone: "danger", text: problem } : null);

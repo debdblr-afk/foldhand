@@ -2,17 +2,32 @@
 import { normaliseImage, recodeJpeg } from "./browser-images";
 import { compress } from "./compress";
 import { imagesToPdf } from "./images";
+import { isLocked, load } from "./load";
 import { merge } from "./merge";
 import { organize } from "./organize";
 import { split } from "./split";
+import { pageNumbers, watermark } from "./stamp";
 import { formatBytes } from "../format";
 import {
   PDF, ToolError, baseName,
-  type CompressOptions, type ImagesOptions, type OrganizeOptions, type Progress, type RawOutput, type SplitOptions, type WorkerRequest, type WorkerResponse,
+  type CompressOptions, type ImagesOptions, type OrganizeOptions, type PageNumberOptions, type Progress, type ProtectOptions, type RawOutput,
+  type RotateOptions, type SourceFile, type SplitOptions, type WatermarkOptions, type WorkerRequest, type WorkerResponse,
 } from "./types";
+import { degrees } from "@cantoo/pdf-lib";
 
 // All PDF writing happens here, off the main thread, so the page stays responsive.
 const post = (msg: WorkerResponse, transfer: Transferable[] = []) => (self as DedicatedWorkerGlobalScope).postMessage(msg, transfer);
+
+/** Runs the same change over each file in turn and names the results with a suffix. */
+async function each(files: SourceFile[], suffix: string, progress: Progress, change: (file: SourceFile) => Promise<Uint8Array | RawOutput>): Promise<RawOutput[]> {
+  const outputs: RawOutput[] = [];
+  for (let i = 0; i < files.length; i++) {
+    const result = await change(files[i]);
+    outputs.push(result instanceof Uint8Array ? { name: `${baseName(files[i].name)}-${suffix}.pdf`, bytes: result, type: PDF } : result);
+    progress(i + 1, files.length);
+  }
+  return outputs;
+}
 
 async function run({ tool, files, options }: WorkerRequest, progress: Progress): Promise<RawOutput[]> {
   switch (tool) {
@@ -24,6 +39,33 @@ async function run({ tool, files, options }: WorkerRequest, progress: Progress):
       return [{ name: `${baseName(files[0].name)}-arranged.pdf`, bytes: await organize(files, (options as OrganizeOptions).pages, progress), type: PDF }];
     case "jpg-to-pdf":
       return imagesToPdf(files, options as ImagesOptions, normaliseImage, progress);
+    case "rotate":
+      return each(files, "rotated", progress, async (f) => {
+        const doc = await load(f);
+        const turn = (f.rotation + (options as RotateOptions).turn) % 360;
+        if (turn) for (const page of doc.getPages()) page.setRotation(degrees((page.getRotation().angle + turn) % 360));
+        return doc.save();
+      });
+    case "page-numbers":
+      return each(files, "numbered", progress, (f) => pageNumbers(f, options as PageNumberOptions));
+    case "watermark":
+      return each(files, "watermarked", progress, (f) => watermark(f, options as WatermarkOptions));
+    case "protect":
+      return each(files, "locked", progress, async (f) => {
+        const doc = await load(f);
+        // The same password opens the file and lifts its restrictions, so there is only one thing to remember.
+        const password = (options as ProtectOptions).password;
+        await doc.encrypt({ userPassword: password, ownerPassword: password });
+        return doc.save();
+      });
+    case "unlock":
+      return each(files, "unlocked", progress, async (f) => {
+        const name = `${baseName(f.name)}-unlocked.pdf`;
+        if (!(await isLocked(f.bytes))) return { name, bytes: f.bytes, type: PDF, detail: "This file was not locked" };
+        return { name, bytes: await (await load(f)).save(), type: PDF };
+      });
+    case "pdf-to-jpg":
+      throw new Error("PDF to images runs on the page, not in this worker");
     case "compress": {
       const outputs: RawOutput[] = [];
       for (let i = 0; i < files.length; i++) {

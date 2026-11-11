@@ -19,6 +19,8 @@ type Props = {
   selected?: boolean;
   onRemove?: () => void;
   onRotate?: () => void;
+  /** Opens the password prompt for a locked file. */
+  onUnlock?: () => void;
   /** Adds a blank page after this one (Arrange pages). */
   onInsertAfter?: () => void;
   /** For drag-to-reorder: the list item's ref and the drag attributes and listeners. */
@@ -27,7 +29,7 @@ type Props = {
 };
 
 /** One file or one page in the workspace. The tools are always in the tab order and always visible on touch. */
-export function FileTile({ name, meta, preview, rotation = 0, status = "ready", problem, dragging, selected, onRemove, onRotate, onInsertAfter, itemRef, itemProps }: Props) {
+export function FileTile({ name, meta, preview, rotation = 0, status = "ready", problem, dragging, selected, onRemove, onRotate, onInsertAfter, onUnlock, itemRef, itemProps }: Props) {
   return (
     <li
       ref={itemRef}
@@ -64,7 +66,9 @@ export function FileTile({ name, meta, preview, rotation = 0, status = "ready", 
         {status === "error" ? (
           <p className="flex items-center gap-1 text-xs text-danger"><TriangleAlert aria-hidden className="size-3.5 shrink-0" />{problem ?? "Could not read this file"}</p>
         ) : status === "locked" ? (
-          <p className="text-xs text-text-muted">Needs its password</p>
+          onUnlock
+            ? <button type="button" onClick={onUnlock} className="text-xs text-accent underline">Enter password</button>
+            : <p className="text-xs text-text-muted">Needs its password</p>
         ) : (
           <p className="tabnums truncate text-xs font-normal text-text-muted">{status === "reading" ? "Reading…" : meta}</p>
         )}

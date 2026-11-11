@@ -14,6 +14,8 @@ export type InputFile = {
   pageCount: number | null;
   rotation: Rotation;
   status: FileStatus;
+  /** The password the person gave for a locked file, once it has been checked. */
+  password: string | null;
   /** Object URL of the preview, once there is one. */
   thumbnailUrl: string | null;
 };
@@ -23,10 +25,10 @@ export type OutputFile = { name: string; blob: Blob; size: number; detail?: stri
 
 export type ErrorCode =
   | "damaged-file" | "locked-file" | "too-few-files" | "out-of-range" | "no-pages-left"
-  | "unsupported-image" | "out-of-memory" | "unknown";
+  | "unsupported-image" | "unsupported-text" | "out-of-memory" | "unknown";
 
 /** What a processor is given for each file: raw bytes plus what the user chose for it. */
-export type SourceFile = { name: string; bytes: Uint8Array; rotation: Rotation; type?: string };
+export type SourceFile = { name: string; bytes: Uint8Array; rotation: Rotation; type?: string; password?: string };
 
 /** One page of the output of Arrange pages: a page of a source file, or a blank sheet. */
 export type PageRef = { source: number | "blank"; pageIndex: number; rotation: Rotation };
@@ -48,12 +50,46 @@ export type ImagesOptions = {
 
 export type OrganizeOptions = { pages: PageRef[] };
 
+/** Where a stamp sits on the page, as the reader sees the page. */
+export type Position = { vertical: "top" | "middle" | "bottom"; horizontal: "left" | "center" | "right" };
+
+export type RotateOptions = { turn: Rotation };
+
+export type PageNumberOptions = {
+  position: Position;
+  /** Pages to number, e.g. "2-10". Empty means every page. */
+  pages: string;
+  start: number;
+  style: "n" | "page-n" | "n-of-total";
+  size: number;
+  skipFirst: boolean;
+};
+
+export type WatermarkOptions = {
+  text: string;
+  position: Position;
+  angle: 0 | 45;
+  strength: "light" | "medium" | "strong";
+  size: "small" | "medium" | "large";
+  color: "grey" | "red" | "blue";
+  pages: string;
+};
+
+export type ProtectOptions = { password: string; repeat: string };
+export type ImagesOutOptions = { quality: "normal" | "high" };
+
 export type ToolOptions = {
   merge: Record<string, never>;
   split: SplitOptions;
   compress: CompressOptions;
   organize: OrganizeOptions;
   "jpg-to-pdf": ImagesOptions;
+  rotate: RotateOptions;
+  "page-numbers": PageNumberOptions;
+  watermark: WatermarkOptions;
+  protect: ProtectOptions;
+  unlock: Record<string, never>;
+  "pdf-to-jpg": ImagesOutOptions;
 };
 export type BuiltTool = keyof ToolOptions & ToolSlug;
 

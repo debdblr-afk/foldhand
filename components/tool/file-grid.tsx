@@ -14,9 +14,10 @@ type Props = {
   onReorder: (files: InputFile[]) => void;
   onRemove: (id: string) => void;
   onRotate?: (id: string, rotation: Rotation) => void;
+  onUnlock?: (id: string) => void;
 };
 
-function Tile({ file, index, total, sortable, onRemove, onRotate }: { file: InputFile; index: number; total: number } & Pick<Props, "sortable" | "onRemove" | "onRotate">) {
+function Tile({ file, index, total, sortable, onRemove, onRotate, onUnlock }: { file: InputFile; index: number; total: number } & Pick<Props, "sortable" | "onRemove" | "onRotate" | "onUnlock">) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: file.id, disabled: !sortable });
   const meta = file.pageCount === null ? formatBytes(file.size) : `${plural(file.pageCount, "page")} · ${formatBytes(file.size)}`;
   return (
@@ -41,13 +42,14 @@ function Tile({ file, index, total, sortable, onRemove, onRotate }: { file: Inpu
         <img src={file.thumbnailUrl} alt="" draggable={false} className="h-full w-full object-contain" />
       ) : undefined}
       onRemove={() => onRemove(file.id)}
+      onUnlock={onUnlock ? () => onUnlock(file.id) : undefined}
       onRotate={onRotate && file.status === "ready" ? () => onRotate(file.id, ((file.rotation + 90) % 360) as Rotation) : undefined}
     />
   );
 }
 
 /** The files in the workspace. Drag to reorder, or focus a tile, press Space, move with the arrows, Space again. */
-export function FileGrid({ files, sortable = true, onReorder, onRemove, onRotate }: Props) {
+export function FileGrid({ files, sortable = true, onReorder, onRemove, onRotate, onUnlock }: Props) {
   const sensors = useSensors(
     // A small distance before a drag starts, so taps on the tile's buttons still count as clicks.
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
@@ -82,7 +84,7 @@ export function FileGrid({ files, sortable = true, onReorder, onRemove, onRotate
     >
       <SortableContext items={files.map((f) => f.id)} strategy={rectSortingStrategy}>
         <ul aria-label={sortable ? "Files, in order" : "Files"} className="flex flex-wrap content-start gap-4">
-          {files.map((f, i) => <Tile key={f.id} file={f} index={i} total={files.length} sortable={sortable} onRemove={onRemove} onRotate={onRotate} />)}
+          {files.map((f, i) => <Tile key={f.id} file={f} index={i} total={files.length} sortable={sortable} onRemove={onRemove} onRotate={onRotate} onUnlock={onUnlock} />)}
         </ul>
       </SortableContext>
     </DndContext>
