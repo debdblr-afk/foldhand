@@ -1,5 +1,5 @@
 // Makes the small PDFs the tests use. Run: node scripts/make-fixtures.mjs
-import { writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { PDFDocument, StandardFonts, rgb } from "@cantoo/pdf-lib";
 
 async function make(label, pages, size = [420, 595], color = rgb(0.2, 0.25, 0.8)) {
@@ -22,4 +22,11 @@ await locked.encrypt({ userPassword: "open-sesame", ownerPassword: "owner-sesame
 writeFileSync(new URL("locked.pdf", out), await locked.save());
 writeFileSync(new URL("broken.pdf", out), "this is not a pdf at all\n");
 writeFileSync(new URL("notes.txt", out), "plain text\n");
+writeFileSync(new URL("long-12.pdf", out), await (await make("P", 12, [420, 595], rgb(0.4, 0.2, 0.6))).save());
+
+// A "scan": two pages, each a full-page photo. photo.jpg is checked in (made once with sips from a generated bitmap).
+const scan = await PDFDocument.create();
+const photo = await scan.embedJpg(readFileSync(new URL("photo.jpg", out)));
+for (let i = 0; i < 2; i++) scan.addPage([595, 446]).drawImage(photo, { x: 0, y: 0, width: 595, height: 446 });
+writeFileSync(new URL("scan.pdf", out), await scan.save());
 console.log("fixtures written");

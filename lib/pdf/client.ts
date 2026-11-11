@@ -1,13 +1,14 @@
-import { ToolError, type InputFile, type OutputFile, type SourceFile, type WorkerRequest, type WorkerResponse } from "./types";
+import { ToolError, type BuiltTool, type InputFile, type OutputFile, type SourceFile, type ToolOptions, type WorkerRequest, type WorkerResponse } from "./types";
 
 let nextId = 1;
 
-/** Runs a tool in a fresh Web Worker and resolves with its output files. */
-export async function runMerge(files: InputFile[], onProgress: (fraction: number) => void): Promise<OutputFile[]> {
+/** Runs a tool in a fresh Web Worker and resolves with its output files. `onProgress` gets 0 to 1. */
+export async function runTool<T extends BuiltTool>(tool: T, files: InputFile[], options: ToolOptions[T], onProgress: (fraction: number) => void): Promise<OutputFile[]> {
   // Reading the bytes is the first slice of the work, so the bar moves straight away.
   const sources: SourceFile[] = [];
   for (let i = 0; i < files.length; i++) {
-    sources.push({ name: files[i].name, bytes: new Uint8Array(await files[i].file.arrayBuffer()), rotation: files[i].rotation });
+    const f = files[i];
+    sources.push({ name: f.name, bytes: new Uint8Array(await f.file.arrayBuffer()), rotation: f.rotation, type: f.file.type });
     onProgress(((i + 1) / files.length) * 0.2);
   }
   const worker = new Worker(new URL("./worker.ts", import.meta.url), { type: "module" });
@@ -17,20 +18,29 @@ export async function runMerge(files: InputFile[], onProgress: (fraction: number
       worker.onmessage = (event: MessageEvent<WorkerResponse>) => {
         const msg = event.data;
         if (msg.id !== id) return;
-        if (msg.type === "progress") onProgress(0.2 + (msg.done / msg.total) * 0.75);
+        if (msg.type === "progress") onProgress(0.2 + (msg.done / Math.max(msg.total, 1)) * 0.75);
         else if (msg.type === "done") {
           onProgress(1);
           resolve(msg.outputs.map((o) => {
-            const blob = new Blob([o.bytes as BlobPart], { type: "application/pdf" });
-            return { name: o.name, blob, size: blob.size };
+            const blob = new Blob([o.bytes as BlobPart], { type: o.type });
+            return { name: o.name, blob, size: blob.size, detail: o.detail };
           }));
-        } else reject(new ToolError(msg.code, msg.fileName));
+        } else reject(new ToolError(msg.code, msg.fileName, msg.detail));
       };
       worker.onerror = () => reject(new ToolError("unknown"));
-      const request: WorkerRequest = { id, tool: "merge", files: sources };
+      const request: WorkerRequest = { id, tool, files: sources, options };
       worker.postMessage(request, sources.map((s) => s.bytes.buffer));
     });
   } finally {
     worker.terminate();
   }
+}
+
+/** Packs several results into one zip, without re-compressing files that are already compressed. */
+export async function zipOutputs(outputs: OutputFile[]): Promise<Blob> {
+  const { zip } = await import("fflate");
+  const entries: Record<string, [Uint8Array, { level: 0 }]> = {};
+  for (const o of outputs) entries[o.name] = [new Uint8Array(await o.blob.arrayBuffer()), { level: 0 }];
+  const bytes = await new Promise<Uint8Array>((resolve, reject) => zip(entries, (err, data) => (err ? reject(err) : resolve(data))));
+  return new Blob([bytes as BlobPart], { type: "application/zip" });
 }

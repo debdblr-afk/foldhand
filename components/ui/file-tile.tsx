@@ -1,5 +1,5 @@
 import type { HTMLAttributes, ReactNode, Ref } from "react";
-import { Lock, RotateCw, TriangleAlert, X } from "lucide-react";
+import { FilePlus, Lock, RotateCw, TriangleAlert, X } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { IconButton } from "./button";
 
@@ -19,13 +19,15 @@ type Props = {
   selected?: boolean;
   onRemove?: () => void;
   onRotate?: () => void;
+  /** Adds a blank page after this one (Arrange pages). */
+  onInsertAfter?: () => void;
   /** For drag-to-reorder: the list item's ref and the drag attributes and listeners. */
   itemRef?: Ref<HTMLLIElement>;
   itemProps?: HTMLAttributes<HTMLLIElement>;
 };
 
 /** One file or one page in the workspace. The tools are always in the tab order and always visible on touch. */
-export function FileTile({ name, meta, preview, rotation = 0, status = "ready", problem, dragging, selected, onRemove, onRotate, itemRef, itemProps }: Props) {
+export function FileTile({ name, meta, preview, rotation = 0, status = "ready", problem, dragging, selected, onRemove, onRotate, onInsertAfter, itemRef, itemProps }: Props) {
   return (
     <li
       ref={itemRef}
@@ -51,7 +53,8 @@ export function FileTile({ name, meta, preview, rotation = 0, status = "ready", 
         {status === "locked" && (
           <span className="absolute inset-0 grid place-items-center bg-scrim text-on-ink"><Lock aria-hidden className="size-6" /></span>
         )}
-        <div className="absolute right-1 top-1 flex gap-1 opacity-0 transition-opacity duration-(--t-motion-fast) group-hover:opacity-100 group-focus-within:opacity-100 pointer-coarse:opacity-100">
+        <div className="absolute inset-x-1 top-1 flex flex-wrap justify-end gap-1 opacity-0 transition-opacity duration-(--t-motion-fast) group-hover:opacity-100 group-focus-within:opacity-100 pointer-coarse:opacity-100">
+          {onInsertAfter && <IconButton size="sm" variant="outline" label={`Add a blank page after ${name}`} onClick={onInsertAfter}><FilePlus aria-hidden className="size-4" /></IconButton>}
           {onRotate && <IconButton size="sm" variant="outline" label={`Rotate ${name}`} onClick={onRotate}><RotateCw aria-hidden className="size-4" /></IconButton>}
           {onRemove && <IconButton size="sm" variant="outline" label={`Remove ${name}`} onClick={onRemove}><X aria-hidden className="size-4" /></IconButton>}
         </div>
