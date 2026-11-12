@@ -25,7 +25,7 @@ export type OutputFile = { name: string; blob: Blob; size: number; detail?: stri
 
 export type ErrorCode =
   | "damaged-file" | "locked-file" | "too-few-files" | "out-of-range" | "no-pages-left"
-  | "unsupported-image" | "unsupported-text" | "out-of-memory" | "unknown";
+  | "unsupported-image" | "unsupported-text" | "font-unavailable" | "out-of-memory" | "unknown";
 
 /** What a processor is given for each file: raw bytes plus what the user chose for it. */
 export type SourceFile = { name: string; bytes: Uint8Array; rotation: Rotation; type?: string; password?: string };

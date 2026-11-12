@@ -1,4 +1,4 @@
-import { a11y, add, download, downloadButton, expect, notice, open, pdfInfo, test, tiles } from "./helpers";
+import { a11y, add, download, downloadButton, expect, isLockedPdf, notice, open, pdfInfo, test, tiles } from "./helpers";
 
 const save = (page: import("@playwright/test").Page) => page.getByRole("button", { name: "Save PDF" }).filter({ visible: true }).click();
 
@@ -52,13 +52,34 @@ test.describe("F04 reorder, delete, rotate or add pages", () => {
     expect((await pdfInfo((await download(page, downloadButton(page))).bytes)).pages).toBe(12);
   });
 
-  test("F04-N1 locked, damaged and wrong-type files are refused by name", async ({ page }) => {
+  test("F04-N1 a damaged file is refused by name; a locked one asks for its password", async ({ page }) => {
     await open(page, "organize");
-    await add(page, "locked.pdf");
-    await expect(notice(page)).toContainText("was not added");
     await add(page, "broken.pdf");
-    await expect(notice(page)).toContainText("was not added");
+    await expect(notice(page)).toContainText("broken.pdf is damaged");
     await expect(tiles(page)).toHaveCount(0);
+    await add(page, "locked.pdf");
+    const dialog = page.getByRole("dialog", { name: "This file is locked" });
+    await expect(dialog).toContainText("locked.pdf");
+    await dialog.getByLabel("Password", { exact: true }).fill("nope");
+    await dialog.getByRole("button", { name: "Open file" }).click();
+    await expect(dialog.getByText("That password did not open the file")).toBeVisible();
+    await dialog.getByLabel("Password", { exact: true }).fill("open-sesame");
+    await dialog.getByLabel("Password", { exact: true }).press("Enter");
+    await expect(dialog).toBeHidden();
+    await expect(tiles(page)).toHaveCount(1);
+    await save(page);
+    const file = await download(page, downloadButton(page));
+    expect(await isLockedPdf(file.bytes)).toBe(false);
+  });
+
+  test("F04-N2 'Leave it out' skips a locked file and keeps the rest", async ({ page }) => {
+    await open(page, "organize");
+    await add(page, "locked.pdf", "alpha.pdf");
+    const dialog = page.getByRole("dialog");
+    await dialog.getByRole("button", { name: "Leave it out" }).click();
+    await expect(dialog).toBeHidden();
+    await expect(tiles(page)).toHaveCount(2);
+    await expect(tiles(page).first()).toContainText("Page 1");
   });
 
   test("F04-A1 accessibility: page grid @phone", async ({ page }) => {

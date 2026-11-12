@@ -1,4 +1,4 @@
-import { a11y, add, bytesOf, download, downloadButton, expect, open, pdfInfo, settled, test } from "./helpers";
+import { a11y, add, bytesOf, download, downloadButton, embeddedFonts, expect, next, open, pdfInfo, settled, test } from "./helpers";
 
 test.describe("F07 page numbers, watermark, rotate", () => {
   test("F07-H1 page numbers are added and the file keeps its pages @smoke", async ({ page }) => {
@@ -52,10 +52,26 @@ test.describe("F07 page numbers, watermark, rotate", () => {
     const run = page.getByRole("button", { name: "Add watermark" }).filter({ visible: true });
     await run.click();
     await expect(page.getByText("Type the text to stamp.")).toBeVisible();
-    await page.getByLabel("Text", { exact: true }).fill("ଗୋପନୀୟ");
+    await page.getByLabel("Text", { exact: true }).fill("机密 🔒");
     await run.click();
     await expect(page.getByText("letters this tool cannot print yet")).toBeVisible();
     await expect(page.getByLabel("Text", { exact: true })).toHaveAttribute("aria-invalid", "true");
+  });
+
+  test("F07-H4 a watermark in Hindi, Odia and English is stamped with embedded fonts", async ({ page }) => {
+    await open(page, "watermark");
+    await add(page, "alpha.pdf");
+    await settled(page, 1);
+    await page.getByLabel("Text", { exact: true }).fill("DRAFT गोपनीय ଗୋପନୀୟ");
+    await page.getByRole("button", { name: "Add watermark" }).filter({ visible: true }).click();
+    const file = await download(page, downloadButton(page));
+    expect((await pdfInfo(file.bytes)).pages).toBe(2);
+    // Two real fonts went into the file (Hindi and Odia); the English part uses the built-in one.
+    expect(await embeddedFonts(file.bytes)).toBe(2);
+    // The stamped file still draws: feed it back in and wait for its preview.
+    await next(page, "Add a password").click();
+    await settled(page, 1);
+    await expect(page.getByRole("list", { name: /^Files/ }).locator("img")).toBeVisible();
   });
 
   test("F07-H3 rotate turns every page of every file", async ({ page }) => {

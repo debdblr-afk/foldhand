@@ -8,8 +8,10 @@ import { Alert, Modal } from "@/components/ui/feedback";
 import { TextField } from "@/components/ui/fields";
 import { cn } from "@/lib/cn";
 import { plural } from "@/lib/format";
+import { sizeWarning } from "@/lib/limits";
 import { runTool } from "@/lib/pdf/client";
 import { inspect } from "@/lib/pdf/inspect";
+import { takeHandOver } from "@/lib/handoff";
 import { explain } from "@/lib/pdf/messages";
 import type { InputFile, Rotation } from "@/lib/pdf/types";
 import type { ToolSlug } from "@/lib/tools";
@@ -86,6 +88,16 @@ export function ToolWorkspace({ slug }: { slug: ToolSlug }) {
     // The config for a slug never changes while the page is open.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [config]);
+
+  // Files carried over from another tool's result (F08) are added as if they had just been picked.
+  // Waiting a tick means a mount that is immediately torn down (as React does in development) takes nothing.
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const carried = takeHandOver();
+      if (carried.length) addFiles(carried);
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [addFiles]);
 
   const remove = (id: string) => setFiles((current) => current.filter((f) => f.id !== id));
   const rotate = (id: string, rotation: Rotation) => setFiles((current) => current.map((f) => (f.id === id ? { ...f, rotation } : f)));
@@ -176,6 +188,7 @@ export function ToolWorkspace({ slug }: { slug: ToolSlug }) {
   }
 
   const pages = files.reduce((n, f) => n + (f.pageCount ?? 0), 0);
+  const heavy = sizeWarning(files.reduce((n, f) => n + f.size, 0));
   const Options = config.Options;
   const ActionIcon = config.ActionIcon;
   const summary = `${plural(files.length, config.kind === "image" ? "image" : "file")}${pages ? ` · ${plural(pages, "page")}` : ""}`;
@@ -216,6 +229,7 @@ export function ToolWorkspace({ slug }: { slug: ToolSlug }) {
             : <Button size="sm" variant="outline" onClick={() => picker.current?.click()}>Choose another file</Button>}
         </div>
         {notice && <Alert tone={notice.tone}>{notice.text}</Alert>}
+        {heavy && <Alert tone="warning">{heavy}</Alert>}
         <FileGrid files={files} sortable={config.ordered} onReorder={setFiles} onRemove={remove} onRotate={config.rotatable ? rotate : undefined} onUnlock={askFor} />
       </section>
 

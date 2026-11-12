@@ -3,13 +3,14 @@ import { cn } from "@/lib/cn";
 import { CATEGORY_TINT, type ToolDef } from "@/lib/tools";
 
 /** A tool in the directory. `compact` is the one-line version used on the result screen. */
-export function ToolCard({ tool, compact }: { tool: ToolDef; compact?: boolean }) {
+export function ToolCard({ tool, compact, onClick }: { tool: ToolDef; compact?: boolean; onClick?: () => void }) {
   const Icon = tool.icon;
   const descId = `tool-${tool.slug}-desc`;
   if (compact) {
     return (
       <Link
         href={`/${tool.slug}`}
+        onClick={onClick}
         className="inline-flex h-11 items-center gap-2 rounded-pill border border-border bg-surface pl-1.5 pr-4 text-sm font-semibold hover:border-border-input hover:bg-surface-hover transition-colors duration-(--t-motion-fast)"
       >
         <span className={cn("grid size-8 place-items-center rounded-pill", CATEGORY_TINT[tool.category])}>

@@ -1,7 +1,9 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { PDFDocument, degrees } from "@cantoo/pdf-lib";
 import { isLocked, load } from "./load";
-import { pageNumbers, toUser, visibleSize, watermark } from "./stamp";
+import { canPrint, splitByFont } from "./fonts";
+import { pageNumbers, toUser, visibleSize, watermark, type LoadFont } from "./stamp";
 import type { PageNumberOptions, SourceFile, WatermarkOptions } from "./types";
 
 async function pdf(pages: number, rotate = 0, name = "doc.pdf"): Promise<SourceFile> {
@@ -73,15 +75,42 @@ describe("pageNumbers", () => {
 
 const mark: WatermarkOptions = { text: "DRAFT", position: { vertical: "middle", horizontal: "center" }, angle: 45, strength: "medium", size: "large", color: "grey", pages: "" };
 
+const fromDisk: LoadFont = async (key) => new Uint8Array(readFileSync(`public/fonts/${key}.woff`));
+const noFonts: LoadFont = async () => { throw new Error("offline"); };
+
+describe("splitByFont", () => {
+  it("keeps Western text in the built-in font", () => {
+    expect(splitByFont("DRAFT – not for release €5")).toEqual([{ font: "base", text: "DRAFT – not for release €5" }]);
+  });
+  it("cuts mixed text at each change of script", () => {
+    expect(splitByFont("DRAFT गोपनीय ଗୋପନୀୟ")).toEqual([
+      { font: "base", text: "DRAFT " }, { font: "devanagari", text: "गोपनीय" }, { font: "base", text: " " }, { font: "oriya", text: "ଗୋପନୀୟ" },
+    ]);
+  });
+  it("has no font for Chinese, Arabic or emoji", () => {
+    for (const text of ["机密", "سري", "top secret 🔒"]) expect(canPrint(text)).toBe(false);
+  });
+});
+
 describe("watermark", () => {
   it("stamps every page", async () => {
-    expect(await stamped(await watermark(await pdf(2), mark))).toEqual([true, true]);
+    expect(await stamped(await watermark(await pdf(2), mark, noFonts))).toEqual([true, true]);
   });
   it("stamps only the chosen pages", async () => {
-    expect(await stamped(await watermark(await pdf(3), { ...mark, pages: "1, 3", angle: 0 }))).toEqual([true, false, true]);
+    expect(await stamped(await watermark(await pdf(3), { ...mark, pages: "1, 3", angle: 0 }, noFonts))).toEqual([true, false, true]);
   });
-  it("says so when the text uses letters it cannot print", async () => {
-    await expect(watermark(await pdf(1), { ...mark, text: "ଗୋପନୀୟ" })).rejects.toMatchObject({ code: "unsupported-text" });
+  it("says so when the text uses letters it has no font for", async () => {
+    await expect(watermark(await pdf(1), { ...mark, text: "机密" }, fromDisk)).rejects.toMatchObject({ code: "unsupported-text" });
+  });
+  it.each([["Hindi", "गोपनीय प्रति"], ["Odia", "ଗୋପନୀୟ"], ["Tamil", "இரகசியம்"], ["Bengali", "গোপনীয়"], ["Telugu", "రహస్యం"], ["Kannada", "ರಹಸ್ಯ"], ["Malayalam", "രഹസ്യം"], ["Gujarati", "ગુપ્ત"], ["Punjabi", "ਗੁਪਤ"], ["Russian", "ЧЕРНОВИК"], ["Greek", "ΠΡΟΧΕΙΡΟ"], ["Polish", "Poufność"], ["mixed", "DRAFT गोपनीय 2026"]])("stamps %s text with an embedded font", async (_, text) => {
+    const out = await watermark(await pdf(2), { ...mark, text }, fromDisk);
+    expect(await stamped(out)).toEqual([true, true]);
+    const fonts = (await PDFDocument.load(out)).context.enumerateIndirectObjects().filter(([, o]) => o.toString().includes("/FontFile2")).length;
+    expect(fonts).toBeGreaterThan(0); // a real font went into the file
+    expect(out.length).toBeLessThan(120_000); // trimmed to the letters used, not the whole font
+  });
+  it("says so when the font cannot be fetched", async () => {
+    await expect(watermark(await pdf(1), { ...mark, text: "गोपनीय" }, noFonts)).rejects.toMatchObject({ code: "font-unavailable" });
   });
 });
 

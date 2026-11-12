@@ -53,12 +53,32 @@ test.describe("Shell: directory, navigation, static pages", () => {
     expect(res.status()).toBe(404);
   });
 
-  test("S11-H1 help, privacy and terms open and say files stay on the device", async ({ page }) => {
-    for (const path of ["/help", "/privacy", "/terms"]) {
-      await page.goto(path);
-      await expect(page.getByText("never leave this device")).toBeVisible();
+  test("S11-H1 help, privacy and terms are written, say files stay on the device, and are linked from the footer @phone", async ({ page }) => {
+    await page.goto("/");
+    for (const [name, heading] of [["Help", "Where do my files go?"], ["Privacy", "Your files"], ["Terms", "Keep your originals"]]) {
+      await page.getByRole("navigation", { name: "About" }).getByRole("link", { name }).click();
+      await expect(page.getByRole("heading", { name: heading })).toBeVisible();
+      await expect(page).toHaveTitle(`${name} · PDF tools`);
+      await expect(page.getByText(/never leave this device/).first()).toBeVisible();
+      await expect(page.getByText("not written yet")).toHaveCount(0);
       await a11y(page);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     }
+  });
+
+  test("S03-E1 a very large job shows a warning before it starts", async ({ page }) => {
+    await page.goto("/merge");
+    await page.waitForFunction(() => { const i = document.querySelector("input[type=file]"); return !!i && Object.keys(i).some((k) => k.startsWith("__reactProps")); });
+    // A 201 MB file made in the page, so nothing large is kept in the project.
+    await page.evaluate(() => {
+      const dt = new DataTransfer();
+      dt.items.add(new File([new Uint8Array(201 * 1024 * 1024)], "huge.pdf", { type: "application/pdf" }));
+      const input = document.querySelector<HTMLInputElement>("input[type=file]")!;
+      input.files = dt.files;
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    await expect(page.getByText(/These files add up to 201\.0 MB/)).toBeVisible();
+    await expect(page.getByText(/may be slow or run out of memory/)).toBeVisible();
   });
 
   test("S00-H1 keyboard only: tab from the top of a tool page reaches the upload button", async ({ page }) => {

@@ -8,12 +8,15 @@ import { CSS } from "@dnd-kit/utilities";
 import { FilePlus2, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dropzone } from "@/components/ui/dropzone";
-import { Alert } from "@/components/ui/feedback";
+import { Alert, Modal } from "@/components/ui/feedback";
+import { TextField } from "@/components/ui/fields";
 import { FileTile } from "@/components/ui/file-tile";
 import { cn } from "@/lib/cn";
 import { plural } from "@/lib/format";
+import { sizeWarning } from "@/lib/limits";
 import { runTool } from "@/lib/pdf/client";
 import { openPdf, type OpenPdf } from "@/lib/pdf/inspect";
+import { takeHandOver } from "@/lib/handoff";
 import { explain } from "@/lib/pdf/messages";
 import type { InputFile, PageRef, Rotation } from "@/lib/pdf/types";
 import { ResultCard } from "./result-card";
@@ -89,6 +92,11 @@ export function OrganizeWorkspace() {
   const [opening, setOpening] = useState(0);
   const [notice, setNotice] = useState<{ tone: "info" | "danger"; text: string } | null>(null);
   const [dragOver, setDragOver] = useState(false);
+  // Locked files wait here until their password is given (S07). The first one is the one being asked about.
+  const [locked, setLocked] = useState<File[]>([]);
+  const [typed, setTyped] = useState("");
+  const [promptError, setPromptError] = useState<string | null>(null);
+  const [checking, setChecking] = useState(false);
   const picker = useRef<HTMLInputElement>(null);
   // Open documents and drawn previews live outside React state: they are caches, not things to render from.
   const docs = useRef(new Map<string, OpenPdf>());
@@ -103,6 +111,14 @@ export function OrganizeWorkspace() {
     };
   }, []);
 
+  /** Puts an opened file and all its pages into the arrangement. */
+  const place = useCallback((file: File, pdf: OpenPdf, password: string | null) => {
+    const id = crypto.randomUUID();
+    docs.current.set(id, pdf);
+    setFiles((current) => [...current, { id, file, name: file.name, size: file.size, kind: "pdf", pageCount: pdf.pageCount, rotation: 0, status: "ready", password, thumbnailUrl: null }]);
+    setPages((current) => [...current, ...Array.from({ length: pdf.pageCount }, (_, pageIndex) => ({ id: crypto.randomUUID(), fileId: id, pageIndex, rotation: 0 as Rotation }))]);
+  }, []);
+
   const addFiles = useCallback(async (incoming: File[]) => {
     const good = incoming.filter((f) => accepts(f, ACCEPT));
     const bad = incoming.length - good.length;
@@ -111,19 +127,35 @@ export function OrganizeWorkspace() {
     for (const file of good) {
       const pdf = await openPdf(file);
       setOpening((n) => n - 1);
-      if (pdf.status !== "ready") {
-        problem = pdf.status === "locked"
-          ? `${file.name} is locked with a password, so it was not added. Unlock it first with "Remove a password".`
-          : `${file.name} is damaged and could not be opened, so it was not added.`;
-        continue;
-      }
-      const id = crypto.randomUUID();
-      docs.current.set(id, pdf);
-      setFiles((current) => [...current, { id, file, name: file.name, size: file.size, kind: "pdf", pageCount: pdf.pageCount, rotation: 0, status: "ready", password: null, thumbnailUrl: null }]);
-      setPages((current) => [...current, ...Array.from({ length: pdf.pageCount }, (_, pageIndex) => ({ id: crypto.randomUUID(), fileId: id, pageIndex, rotation: 0 as Rotation }))]);
+      if (pdf.status === "locked") setLocked((queue) => [...queue, file]);
+      else if (pdf.status === "damaged") problem = `${file.name} is damaged and could not be opened, so it was not added.`;
+      else place(file, pdf, null);
     }
     setNotice(problem ? { tone: "danger", text: problem } : null);
-  }, []);
+  }, [place]);
+
+  // Files carried over from another tool's result (F08). The tick's delay is explained in tool-workspace.tsx.
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const carried = takeHandOver();
+      if (carried.length) void addFiles(carried);
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [addFiles]);
+
+  const nextLocked = () => { setLocked((queue) => queue.slice(1)); setTyped(""); setPromptError(null); };
+
+  async function submitPassword() {
+    const file = locked[0];
+    if (!file) return;
+    setChecking(true);
+    // The password is checked by really opening the file with it.
+    const pdf = await openPdf(file, typed);
+    setChecking(false);
+    if (pdf.status !== "ready") return setPromptError(typed ? "That password did not open the file. Check it and try again." : "Type the password for this file.");
+    place(file, pdf, typed);
+    nextLocked();
+  }
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
@@ -171,6 +203,7 @@ export function OrganizeWorkspace() {
     previews.current.clear();
     setFiles([]);
     setPages([]);
+    setLocked([]);
     setNotice(null);
     task.reset();
   }
@@ -181,6 +214,23 @@ export function OrganizeWorkspace() {
     setDragOver(false);
     addFiles(Array.from(e.dataTransfer.files));
   }
+
+  const passwordPrompt = (
+      <Modal
+        open={locked.length > 0}
+        onOpenChange={(open) => { if (!open) nextLocked(); }}
+        title="This file is locked"
+        description={`Type the password for ${locked[0]?.name ?? "this file"} to add its pages. The password stays on this device.`}
+      >
+        <form className="flex flex-col gap-4" onSubmit={(e) => { e.preventDefault(); void submitPassword(); }}>
+          <TextField label="Password" type="password" autoComplete="off" autoFocus value={typed} onChange={(e) => setTyped(e.target.value)} error={promptError} />
+          <div className="flex justify-end gap-2">
+            <Button variant="ghost" onClick={nextLocked}>Leave it out</Button>
+            <Button type="submit" loading={checking}>Open file</Button>
+          </div>
+        </form>
+      </Modal>
+  );
 
   if (task.phase === "done") {
     return (
@@ -206,9 +256,12 @@ export function OrganizeWorkspace() {
           onFiles={addFiles}
         />
         {notice && <div className="mx-auto w-full max-w-[640px]"><Alert tone={notice.tone}>{notice.text}</Alert></div>}
+        {passwordPrompt}
       </main>
     );
   }
+
+  const heavy = sizeWarning(files.reduce((n, f) => n + f.size, 0));
 
   const action = (className: string, size: "md" | "lg") => (
     <Button size={size} className={className} loading={opening > 0} icon={<Save aria-hidden className={size === "lg" ? "size-6" : "size-5"} />} onClick={run}>Save PDF</Button>
@@ -230,6 +283,7 @@ export function OrganizeWorkspace() {
           <Button size="sm" variant="outline" icon={<FilePlus2 aria-hidden className="size-4" />} onClick={() => picker.current?.click()}>Add another PDF</Button>
         </div>
         {notice && <Alert tone={notice.tone}>{notice.text}</Alert>}
+        {heavy && <Alert tone="warning">{heavy}</Alert>}
         <DndContext
           id="page-grid"
           sensors={sensors}
@@ -284,6 +338,8 @@ export function OrganizeWorkspace() {
         <span className="tabnums text-sm text-text-muted">{plural(pages.length, "page")}</span>
         {action("h-12 flex-1", "md")}
       </div>
+
+      {passwordPrompt}
 
       <div aria-hidden className={cn("pointer-events-none absolute inset-2 z-30 grid place-items-center rounded-xl border-2 border-dashed border-accent bg-dropzone-active text-lg text-accent transition-opacity duration-(--t-motion-fast)", dragOver ? "opacity-100" : "opacity-0")}>
         Drop to add

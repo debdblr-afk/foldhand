@@ -17,7 +17,9 @@ export default defineConfig({
   outputDir: "e2e/.results",
   use: { baseURL, trace: "retain-on-failure", screenshot: "only-on-failure", acceptDownloads: true },
   projects: [
-    { name: "desktop", use: { ...devices["Desktop Chrome"], viewport: { width: 1440, height: 900 } } },
+    { name: "desktop", use: { ...devices["Desktop Chrome"], viewport: { width: 1440, height: 900 } }, grepInvert: /@large/ },
+    // Slow checks with a 100 MB file. Run with: npm run e2e:large
+    { name: "large", use: { ...devices["Desktop Chrome"], viewport: { width: 1440, height: 900 } }, grep: /@large/, timeout: 600_000 },
     { name: "phone", use: { ...devices["Pixel 7"] }, grep: /@phone/ },
     // Safari's engine. Run with: npx playwright test --project=safari
     { name: "safari", use: { ...devices["Desktop Safari"], viewport: { width: 1440, height: 900 } }, grep: /@smoke/ },

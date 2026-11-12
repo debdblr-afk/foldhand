@@ -49,7 +49,13 @@ async function run({ tool, files, options }: WorkerRequest, progress: Progress):
     case "page-numbers":
       return each(files, "numbered", progress, (f) => pageNumbers(f, options as PageNumberOptions));
     case "watermark":
-      return each(files, "watermarked", progress, (f) => watermark(f, options as WatermarkOptions));
+      return each(files, "watermarked", progress, (f) => watermark(f, options as WatermarkOptions, async (key) => {
+        // The full address, not "/fonts/…": in development this worker runs from a blob: address, which a
+        // bare path cannot be resolved against.
+        const res = await fetch(`${self.location.origin}/fonts/${key}.woff`);
+        if (!res.ok) throw new Error(`font ${key}: ${res.status}`);
+        return new Uint8Array(await res.arrayBuffer());
+      }));
     case "protect":
       return each(files, "locked", progress, async (f) => {
         const doc = await load(f);

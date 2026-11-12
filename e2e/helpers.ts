@@ -48,6 +48,9 @@ export async function drop(page: Page, target: Locator, ...names: string[]) {
   await target.dispatchEvent("drop", { dataTransfer });
 }
 
+/** A "keep working on this file" link on the result screen (not the same-named link in the header). */
+export const next = (page: Page, name: string) => page.locator("main").getByRole("link", { name, exact: true });
+
 /** The message shown in the workspace (not the page's hidden announcers). */
 export const notice = (page: Page) => page.locator("main").locator("[role=alert], [role=status]").filter({ hasText: /\S/ });
 
@@ -76,6 +79,12 @@ export const downloadButton = (page: Page) => page.getByRole("link", { name: "Do
 export async function pdfInfo(bytes: Uint8Array, password?: string) {
   const doc = await PDFDocument.load(bytes, password === undefined ? undefined : { password });
   return { pages: doc.getPageCount(), widths: doc.getPages().map((p) => Math.round(p.getWidth())), heights: doc.getPages().map((p) => Math.round(p.getHeight())), rotations: doc.getPages().map((p) => p.getRotation().angle) };
+}
+
+/** How many real font files are embedded in a PDF (the built-in fonts do not count). */
+export async function embeddedFonts(bytes: Uint8Array): Promise<number> {
+  const doc = await PDFDocument.load(bytes);
+  return doc.context.enumerateIndirectObjects().filter(([, o]) => o.toString().includes("/FontFile2")).length;
 }
 
 export async function isLockedPdf(bytes: Uint8Array): Promise<boolean> {

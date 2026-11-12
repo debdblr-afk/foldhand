@@ -1,19 +1,26 @@
 import type { Metadata } from "next";
-import { Footer, TopNav } from "@/components/ui/shell";
+import { ProsePage, Topic } from "@/components/ui/prose";
 
-export const metadata: Metadata = { title: "Terms" };
+export const metadata: Metadata = { title: "Terms", description: "The terms for using these PDF tools." };
 
-// Stub: the real text is written with the rest of the should-haves.
-export default function Page() {
+export default function TermsPage() {
   return (
-    <>
-      <TopNav />
-      <main id="main" className="mx-auto flex w-full max-w-[720px] flex-1 flex-col gap-4 px-4 py-14">
-        <h1 className="text-xl md:text-2xl">Terms</h1>
-        <p className="text-text-muted">This page is not written yet.</p>
-        <p>Your files never leave this device. Every tool does its work inside this browser tab, and nothing is uploaded or stored.</p>
-      </main>
-      <Footer />
-    </>
+    <ProsePage title="Terms" intro="These tools are free to use. By using them you agree to the points below.">
+      <Topic title="Your files are your responsibility">
+        <p>Use the tools only on files you have the right to use and change. In particular, remove a password only from a file you are allowed to open.</p>
+      </Topic>
+      <Topic title="Keep your originals">
+        <p>The tools give you a new file and leave your original untouched. Check the result before you rely on it or delete the original. Your files never leave this device, so there is no copy anywhere else to recover.</p>
+      </Topic>
+      <Topic title="No guarantees">
+        <p>The tools are provided as they are, without any warranty. They may not work with every file, and a result may differ from what you expected. To the extent the law allows, the people who run this site are not liable for loss or damage that comes from using it.</p>
+      </Topic>
+      <Topic title="Fair use of the site">
+        <p>Do not try to disrupt the site or use it to break the law.</p>
+      </Topic>
+      <Topic title="Changes">
+        <p>The tools and these terms may change. The current terms are always on this page.</p>
+      </Topic>
+    </ProsePage>
   );
 }

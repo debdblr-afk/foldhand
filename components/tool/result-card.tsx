@@ -5,6 +5,7 @@ import { CircleCheck, Download, FileArchive, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ToolCard } from "@/components/ui/tool-card";
 import { formatBytes, plural } from "@/lib/format";
+import { handOver } from "@/lib/handoff";
 import { zipOutputs } from "@/lib/pdf/client";
 import type { OutputFile } from "@/lib/pdf/types";
 import { TOOLS, type ToolSlug } from "@/lib/tools";
@@ -14,7 +15,7 @@ type Props = {
   outputs: OutputFile[];
   /** Name for the zip when there are several files. */
   zipName: string;
-  /** Tools worth offering next. */
+  /** Tools worth offering next. Picking one carries the result over to it. */
   next: ToolSlug[];
   onSaved: () => void;
   onStartOver: () => void;
@@ -94,9 +95,12 @@ export function ResultCard({ headline, outputs, zipName, next, onSaved, onStartO
       )}
       <Button variant="ghost" icon={<RotateCcw aria-hidden className="size-4" />} onClick={onStartOver}>Start over</Button>
       <div className="mt-6 flex w-full flex-col items-center gap-3 border-t border-border pt-6">
-        <h2 className="text-sm font-semibold text-text-muted">Other tools</h2>
+        <h2 className="text-sm font-semibold text-text-muted">{outputs.length === 1 ? "Keep working on this file" : "Keep working on these files"}</h2>
         <div className="flex flex-wrap justify-center gap-2">
-          {TOOLS.filter((t) => next.includes(t.slug)).map((t) => <ToolCard key={t.slug} tool={t} compact />)}
+          {TOOLS.filter((t) => next.includes(t.slug)).map((t) => (
+            // The result goes with the person; the next tool keeps the files it can use.
+            <ToolCard key={t.slug} tool={t} compact onClick={() => { handOver(outputs.map((o) => new File([o.blob], o.name, { type: o.blob.type }))); onSaved(); }} />
+          ))}
         </div>
       </div>
     </section>

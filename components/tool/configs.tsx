@@ -5,6 +5,7 @@ import { Combine, FileOutput, Hash, Images, Lock, LockOpen, Minimize2, RotateCw,
 import { Checkbox, PositionGrid, Segmented, TextField } from "@/components/ui/fields";
 import { plural } from "@/lib/format";
 import { pdfToImages } from "@/lib/pdf/client";
+import { canPrint } from "@/lib/pdf/fonts";
 import { parseRanges } from "@/lib/pdf/ranges";
 import type {
   BuiltTool, CompressOptions, ImagesOptions, ImagesOutOptions, InputFile, OutputFile, PageNumberOptions, ProtectOptions, RotateOptions, SplitOptions, ToolOptions, WatermarkOptions,
@@ -195,9 +196,7 @@ function NumbersPanel({ value, onChange, error }: OptionsProps<PageNumberOptions
 }
 
 const WM_EMPTY = "Type the text to stamp.";
-const WM_LETTERS = "That text has letters this tool cannot print yet. Use English letters, numbers and common symbols.";
-// What the built-in font can print: basic and Western European letters, plus a few common marks.
-const PRINTABLE = /^[\u0020-\u007e\u00a1-\u00ff\u2013\u2014\u2018\u2019\u201c\u201d\u2022\u2026\u20ac\u2122]*$/;
+const WM_LETTERS = "That text has letters this tool cannot print yet, such as Chinese, Arabic or emoji.";
 
 function WatermarkPanel({ value, onChange, error }: OptionsProps<WatermarkOptions>) {
   const textError = error === WM_EMPTY || error === WM_LETTERS ? error : null;
@@ -256,7 +255,7 @@ const watermarkTool: ToolConfig<"watermark"> = {
   doneHeadline: (n) => (n === 1 ? "Your watermarked PDF is ready" : `Your ${n} watermarked PDFs are ready`), zipName: "watermarked.zip", next: ["protect", "compress", "merge"],
   panelTitle: "Watermark options", initial: { text: "", position: { vertical: "middle", horizontal: "center" }, angle: 45, strength: "medium", size: "large", color: "grey", pages: "" },
   Options: WatermarkPanel,
-  check: (o, files) => (!o.text.trim() ? WM_EMPTY : !PRINTABLE.test(o.text.trim()) ? WM_LETTERS : checkPages(o.pages, files)),
+  check: (o, files) => (!o.text.trim() ? WM_EMPTY : !canPrint(o.text.trim()) ? WM_LETTERS : checkPages(o.pages, files)),
 };
 
 const protect: ToolConfig<"protect"> = {
@@ -277,7 +276,7 @@ const unlock: ToolConfig<"unlock"> = {
 const toImages: ToolConfig<"pdf-to-jpg"> = {
   ...pdfTool, slug: "pdf-to-jpg", title: "PDF to images", pitch: "Save every page as a JPG picture.", buttonLabel: "Choose a PDF file",
   multiple: false, rotatable: true, actionLabel: "Make images", ActionIcon: Images, busyTitle: () => "Turning pages into pictures", busyStep: "Drawing pages",
-  doneHeadline: (n) => (n === 1 ? "Your image is ready" : `Your ${n} images are ready`), zipName: "pages.zip", next: ["jpg-to-pdf", "compress", "split"],
+  doneHeadline: (n) => (n === 1 ? "Your image is ready" : `Your ${n} images are ready`), zipName: "pages.zip", next: ["jpg-to-pdf"],
   panelTitle: "Image options", initial: { quality: "normal" }, Options: ImagesOutPanel,
   run: (files, options, onProgress) => pdfToImages(files[0], options.quality, onProgress),
 };

@@ -10,7 +10,8 @@ export function explain(code: ErrorCode, fileName?: string, detail?: string): st
     case "out-of-range": return detail ?? "Those pages are not in this file.";
     case "no-pages-left": return "That would leave no pages. Keep at least one.";
     case "unsupported-image": return `${file} could not be read as a picture. Use JPG or PNG files.`;
-    case "unsupported-text": return "That text has letters this tool cannot print yet. Use English letters, numbers and common symbols.";
+    case "unsupported-text": return "That text has letters this tool cannot print yet, such as Chinese, Arabic or emoji.";
+    case "font-unavailable": return "The letters for that text could not be loaded. Check your connection and try again.";
     case "out-of-memory": return "These files are too large for this device to handle in one go. Try fewer files at a time.";
     default: return "Something went wrong. Nothing was lost; try again.";
   }

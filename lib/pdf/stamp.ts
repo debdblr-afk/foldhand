@@ -1,4 +1,5 @@
 import { StandardFonts, degrees, rgb, type PDFFont, type PDFPage } from "@cantoo/pdf-lib";
+import { splitByFont, type FontKey } from "./fonts";
 import { load } from "./load";
 import { parseRanges } from "./ranges";
 import { ToolError, type PageNumberOptions, type Position, type SourceFile, type WatermarkOptions } from "./types";
@@ -35,16 +36,28 @@ function chosen(text: string, count: number, fileName: string): Set<number> {
   return new Set(parsed.groups.flat());
 }
 
-/** Draws text whose centre sits at a point given in reader coordinates, turned by `tilt` degrees for the reader. */
-function drawCentred(page: PDFPage, text: string, font: PDFFont, size: number, cx: number, cy: number, tilt: number, color: ReturnType<typeof rgb>, opacity: number) {
-  const width = font.widthOfTextAtSize(text, size);
-  const height = font.heightAtSize(size, { descender: false });
+type Piece = { text: string; font: PDFFont };
+
+const widthOf = (pieces: Piece[], size: number) => pieces.reduce((w, p) => w + p.font.widthOfTextAtSize(p.text, size), 0);
+
+/**
+ * Draws a line of text whose centre sits at a point given in reader coordinates, turned by `tilt` degrees
+ * for the reader. The line may be made of pieces in different fonts; they are laid end to end.
+ */
+function drawCentred(page: PDFPage, pieces: Piece[], size: number, cx: number, cy: number, tilt: number, color: ReturnType<typeof rgb>, opacity: number) {
+  const width = widthOf(pieces, size);
+  const height = pieces[0].font.heightAtSize(size, { descender: false });
   const centre = toUser(page, cx, cy);
   const total = ((centre.angle + tilt) * Math.PI) / 180;
-  // Step back from the centre to the start of the baseline, along the direction the text will run.
-  const x = centre.x - (Math.cos(total) * width) / 2 + (Math.sin(total) * height) / 2;
-  const y = centre.y - (Math.sin(total) * width) / 2 - (Math.cos(total) * height) / 2;
-  page.drawText(text, { x, y, size, font, color, opacity, rotate: degrees(centre.angle + tilt) });
+  // Step back from the centre to the start of the baseline, then walk along the direction the text runs.
+  let x = centre.x - (Math.cos(total) * width) / 2 + (Math.sin(total) * height) / 2;
+  let y = centre.y - (Math.sin(total) * width) / 2 - (Math.cos(total) * height) / 2;
+  for (const piece of pieces) {
+    page.drawText(piece.text, { x, y, size, font: piece.font, color, opacity, rotate: degrees(centre.angle + tilt) });
+    const advance = piece.font.widthOfTextAtSize(piece.text, size);
+    x += Math.cos(total) * advance;
+    y += Math.sin(total) * advance;
+  }
 }
 
 function anchor(position: Position, page: { width: number; height: number }, halfWidth: number, halfHeight: number) {
@@ -68,7 +81,7 @@ export async function pageNumbers(file: SourceFile, options: PageNumberOptions):
     const n = start + i - offset;
     const text = options.style === "page-n" ? `Page ${n}` : options.style === "n-of-total" ? `${n} of ${total}` : `${n}`;
     const { cx, cy } = anchor(options.position, visibleSize(page), font.widthOfTextAtSize(text, size) / 2, size / 2);
-    drawCentred(page, text, font, size, cx, cy, 0, rgb(0, 0, 0), 1);
+    drawCentred(page, [{ text, font }], size, cx, cy, 0, rgb(0, 0, 0), 1);
   });
   return doc.save();
 }
@@ -77,16 +90,42 @@ const STRENGTH = { light: 0.15, medium: 0.3, strong: 0.6 } as const;
 const SCALE = { small: 0.25, medium: 0.5, large: 0.8 } as const; // share of the page width the text fills
 const COLORS = { grey: rgb(0.35, 0.35, 0.38), red: rgb(0.8, 0.1, 0.1), blue: rgb(0.1, 0.25, 0.75) } as const;
 
+/** Fetches the bytes of one of the fonts in /fonts. Injected so tests can read them from disk. */
+export type LoadFont = (key: Exclude<FontKey, "base">) => Promise<Uint8Array>;
+
 /** Stamps a line of text across each chosen page. */
-export async function watermark(file: SourceFile, options: WatermarkOptions): Promise<Uint8Array> {
+export async function watermark(file: SourceFile, options: WatermarkOptions, loadFont: LoadFont): Promise<Uint8Array> {
   const doc = await load(file);
-  const font = await doc.embedFont(StandardFonts.HelveticaBold);
   const text = options.text.trim();
-  // The built-in font only covers Latin letters. Other scripts need an embedded font (not built yet), and
-  // drawing them anyway would silently leave gaps, so refuse instead.
-  const known = new Set(font.getCharacterSet());
-  if ([...text].some((ch) => !known.has(ch.codePointAt(0)!))) throw new ToolError("unsupported-text");
-  const unit = font.widthOfTextAtSize(text, 1);
+  const runs = splitByFont(text);
+  if (!runs) throw new ToolError("unsupported-text");
+
+  // The built-in font prints Western letters. Other scripts each get a Noto Sans file, embedded only when
+  // used and trimmed to the letters in the text.
+  const fonts = new Map<FontKey, PDFFont>();
+  for (const { font: key } of runs) {
+    if (fonts.has(key)) continue;
+    if (key === "base") fonts.set(key, await doc.embedFont(StandardFonts.HelveticaBold));
+    else {
+      const { default: fontkit } = await import("@cantoo/fontkit");
+      doc.registerFontkit(fontkit as never);
+      let bytes: Uint8Array;
+      try {
+        bytes = await loadFont(key);
+      } catch {
+        throw new ToolError("font-unavailable");
+      }
+      fonts.set(key, await doc.embedFont(bytes, { subset: true }));
+    }
+  }
+  const pieces: Piece[] = runs.map((r) => ({ text: r.text, font: fonts.get(r.font)! }));
+  // A letter inside a known script that its font still lacks would print as an empty box: refuse instead.
+  for (const piece of pieces) {
+    const known = new Set(piece.font.getCharacterSet());
+    if ([...piece.text].some((ch) => !known.has(ch.codePointAt(0)!) && ch !== "\u200c" && ch !== "\u200d")) throw new ToolError("unsupported-text");
+  }
+  const unit = widthOf(pieces, 1);
+
   const pages = doc.getPages();
   const wanted = chosen(options.pages, pages.length, file.name);
   pages.forEach((page, i) => {
@@ -99,7 +138,7 @@ export async function watermark(file: SourceFile, options: WatermarkOptions): Pr
     const halfWidth = (Math.cos(tilt) * width + Math.sin(tilt) * size) / 2;
     const halfHeight = (Math.sin(tilt) * width + Math.cos(tilt) * size) / 2;
     const { cx, cy } = anchor(options.position, visible, halfWidth, halfHeight);
-    drawCentred(page, text, font, size, cx, cy, options.angle, COLORS[options.color], STRENGTH[options.strength]);
+    drawCentred(page, pieces, size, cx, cy, options.angle, COLORS[options.color], STRENGTH[options.strength]);
   });
   return doc.save();
 }
