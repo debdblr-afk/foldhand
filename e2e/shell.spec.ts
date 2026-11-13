@@ -92,7 +92,9 @@ test.describe("Shell: directory, navigation, static pages", () => {
 
   test("S00-N1 nothing is sent anywhere: no request leaves the site while a tool runs", async ({ page }) => {
     const outside: string[] = [];
-    page.on("request", (req) => { const u = new URL(req.url()); if (!["localhost", "127.0.0.1"].includes(u.hostname) && u.protocol.startsWith("http")) outside.push(req.url()); });
+    // "Outside" means any address that is not the site being tested, whether that is localhost or the live site.
+    const home = new URL(test.info().project.use.baseURL ?? "http://localhost").origin;
+    page.on("request", (req) => { const u = new URL(req.url()); if (u.protocol.startsWith("http") && u.origin !== home) outside.push(req.url()); });
     const posts: string[] = [];
     page.on("request", (req) => { if (req.method() !== "GET") posts.push(`${req.method()} ${req.url()}`); });
     await page.goto("/merge");

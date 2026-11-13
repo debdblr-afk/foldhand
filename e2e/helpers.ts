@@ -11,7 +11,13 @@ export const fx = (name: string) => path.join(__dirname, "fixtures", name);
 export const test = base.extend<{ page: Page }>({
   page: async ({ page }, run) => {
     const problems: string[] = [];
-    page.on("console", (msg) => { if (msg.type() === "error") problems.push(`console: ${msg.text()}`); });
+    page.on("console", (msg) => {
+      if (msg.type() !== "error") return;
+      // Safari sometimes cuts a background link prefetch short when the page navigates; Next.js then does an
+      // ordinary page load, which works. Only that exact message is ignored.
+      if (/Failed to fetch RSC payload .* Falling back to browser navigation/.test(msg.text())) return;
+      problems.push(`console: ${msg.text()}`);
+    });
     page.on("pageerror", (err) => problems.push(`page error: ${err.message}`));
     page.on("response", (res) => { if (res.status() >= 400 && !res.url().includes("favicon")) problems.push(`${res.status()} ${res.url()}`); });
     await run(page);
