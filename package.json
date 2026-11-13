@@ -1,5 +1,5 @@
 {
-  "name": "pdf-tools",
+  "name": "foldhand",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -7,7 +7,7 @@
     "build": "next build",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
-    "tokens": "python3 ../replica-ilovepdf/design/build_tokens.py app/styles",
+    "tokens": "python3 design/build_tokens.py app/styles",
     "postinstall": "node scripts/copy-assets.mjs",
     "test": "vitest run",
     "build:check": "NEXT_DIST_DIR=.next-build next build",

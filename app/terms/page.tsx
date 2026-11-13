@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { ProsePage, Topic } from "@/components/ui/prose";
 
-export const metadata: Metadata = { title: "Terms", description: "The terms for using these PDF tools." };
+export const metadata: Metadata = { title: "Terms", description: "The terms for using Foldhand." };
 
 export default function TermsPage() {
   return (

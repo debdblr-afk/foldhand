@@ -2,22 +2,35 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { FileStack, Menu, X } from "lucide-react";
+import { Menu, X } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { TOOLS, type ToolSlug } from "@/lib/tools";
 
 const DIRECT: ToolSlug[] = ["merge", "split", "compress"];
 const linkClass = "text-xs uppercase tracking-[.02em] hover:text-accent transition-colors duration-(--t-motion-fast)";
 
-/** Sticky header. Working wordmark until /replica-brand. */
+/**
+ * The interim mark: a sheet with one corner folded over. Drawn here from scratch; the final logo follows
+ * the logo brief in brand.md (planning folder).
+ */
+export function FoldMark({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 32 32" aria-hidden className={className}>
+      <path d="M6 0h13l13 13v13a6 6 0 0 1-6 6H6a6 6 0 0 1-6-6V6a6 6 0 0 1 6-6Z" fill="var(--t-color-accent)" />
+      <path d="M19 0v9a4 4 0 0 0 4 4h9Z" fill="var(--t-color-accent-soft)" />
+    </svg>
+  );
+}
+
+/** Sticky header. */
 export function TopNav({ current }: { current?: ToolSlug }) {
   const [open, setOpen] = useState(false);
   return (
     <header onKeyDown={(e) => { if (e.key === "Escape") setOpen(false); }} className="sticky top-0 z-30 border-b border-border bg-surface">
       <div className="mx-auto flex h-[60px] max-w-page items-center gap-6 px-4 md:px-6">
         <Link href="/" className="flex items-center gap-2 text-lg">
-          <span className="grid size-8 place-items-center rounded-md bg-accent text-on-accent"><FileStack aria-hidden className="size-5" /></span>
-          PDF tools
+          <FoldMark className="size-8" />
+          Foldhand
         </Link>
         <nav aria-label="Tools" className="hidden items-center gap-5 md:flex">
           {TOOLS.filter((t) => DIRECT.includes(t.slug)).map((t) => (
@@ -62,7 +75,7 @@ export function Footer({ slim }: { slim?: boolean }) {
   return (
     <footer className="border-t border-border bg-surface text-sm text-text-muted">
       <div className={cn("mx-auto flex max-w-page flex-wrap items-center gap-x-6 gap-y-2 px-4 md:px-6", slim ? "h-12" : "py-8")}>
-        <span>Files stay on this device.</span>
+        <span>Free. Files stay on this device.</span>
         {!slim && (
           <nav aria-label="About" className="ml-auto flex gap-6">
             <Link href="/help" className="hover:text-text">Help</Link>

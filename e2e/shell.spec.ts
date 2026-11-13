@@ -21,7 +21,7 @@ test.describe("Shell: directory, navigation, static pages", () => {
       await page.goto(`/${slug}`);
       await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
       await expect(page.getByRole("button", { name: /^Choose / })).toBeVisible();
-      await expect(page).toHaveTitle(/· PDF tools$/);
+      await expect(page).toHaveTitle(/· Foldhand$/);
       await expect(page.getByText("not built yet")).toHaveCount(0);
     }
   });
@@ -58,7 +58,7 @@ test.describe("Shell: directory, navigation, static pages", () => {
     for (const [name, heading] of [["Help", "Where do my files go?"], ["Privacy", "Your files"], ["Terms", "Keep your originals"]]) {
       await page.getByRole("navigation", { name: "About" }).getByRole("link", { name }).click();
       await expect(page.getByRole("heading", { name: heading })).toBeVisible();
-      await expect(page).toHaveTitle(`${name} · PDF tools`);
+      await expect(page).toHaveTitle(`${name} · Foldhand`);
       await expect(page.getByText(/never leave this device/).first()).toBeVisible();
       await expect(page.getByText("not written yet")).toHaveCount(0);
       await a11y(page);

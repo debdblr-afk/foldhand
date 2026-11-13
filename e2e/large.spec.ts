@@ -13,7 +13,7 @@ test.beforeAll(async () => {
     const image = await doc.embedJpg(photo);
     doc.addPage([595, 446]).drawImage(image, { x: 0, y: 0, width: 595, height: 446 });
   }
-  big = path.join(mkdtempSync(path.join(tmpdir(), "pdf-tools-")), "big-scan.pdf");
+  big = path.join(mkdtempSync(path.join(tmpdir(), "foldhand-")), "big-scan.pdf");
   writeFileSync(big, await doc.save());
   console.log(`big file: ${(statSync(big).size / 1024 / 1024).toFixed(1)} MB`);
 });

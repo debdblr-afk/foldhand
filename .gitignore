@@ -61,3 +61,4 @@ next-env.d.ts
 /e2e/.results/
 /e2e/.report/
 /public/fonts/
+/screenshots/

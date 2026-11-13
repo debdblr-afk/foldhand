@@ -5,9 +5,8 @@ import "./globals.css";
 const figtree = Figtree({ subsets: ["latin"], variable: "--font-figtree" });
 
 export const metadata: Metadata = {
-  // Working name until /replica-brand.
-  title: { default: "PDF tools that run on your device", template: "%s · PDF tools" },
-  description: "Merge, split, compress and tidy PDFs in your browser. Files stay on this device.",
+  title: { default: "Foldhand: free PDF tools that run on your device", template: "%s · Foldhand" },
+  description: "Merge, split, shrink and tidy PDFs for free. No account, no limits, and your files never leave your device.",
 };
 
 export const viewport: Viewport = { themeColor: "#f5f6f8", colorScheme: "light" };

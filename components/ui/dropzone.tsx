@@ -76,7 +76,7 @@ export function Dropzone({ title, pitch, buttonLabel, accept, acceptLabel, multi
       </Button>
       <p className="text-sm text-text-muted">{over ? "Drop to add" : "or drop them anywhere here"}</p>
       <p className="inline-flex items-center gap-1.5 text-sm text-success">
-        <ShieldCheck aria-hidden className="size-4" /> Files stay on this device. Nothing is uploaded.
+        <ShieldCheck aria-hidden className="size-4" /> Free, with no limits. Files stay on this device.
       </p>
       <p role="alert" className="min-h-5 text-sm text-danger">{rejected}</p>
     </section>
