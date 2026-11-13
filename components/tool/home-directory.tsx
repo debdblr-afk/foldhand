@@ -16,9 +16,9 @@ export function HomeDirectory() {
         {CATEGORIES.map((c) => <Chip key={c.id} selected={category === c.id} onClick={() => setCategory(c.id)}>{c.label}</Chip>)}
       </div>
       <p aria-live="polite" className="sr-only">{shown.length} tools shown</p>
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+      <section aria-label="All tools" className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
         {shown.map((t) => <ToolCard key={t.slug} tool={t} />)}
-      </div>
+      </section>
     </>
   );
 }

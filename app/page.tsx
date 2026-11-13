@@ -1,3 +1,4 @@
+import { LandingSections } from "@/components/home/landing-sections";
 import { HomeDirectory } from "@/components/tool/home-directory";
 import { Footer, TopNav } from "@/components/ui/shell";
 
@@ -11,6 +12,7 @@ export default function Home() {
           <p className="text-md text-text-muted">Merge, split, shrink and tidy PDFs right in this tab. No account, no limit on files, and nothing asked for at the end. It can be free because your own device does the work.</p>
         </div>
         <HomeDirectory />
+        <LandingSections />
       </main>
       <Footer />
     </>

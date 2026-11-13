@@ -5,7 +5,7 @@ const TOOLS = ["merge", "split", "compress", "organize", "rotate", "jpg-to-pdf",
 test.describe("Shell: directory, navigation, static pages", () => {
   test("S01-H1 home lists all eleven tools and the filter narrows them @smoke @phone", async ({ page }) => {
     await page.goto("/");
-    const cards = page.locator("main").getByRole("link");
+    const cards = page.getByRole("region", { name: "All tools" }).getByRole("link");
     await expect(cards).toHaveCount(11);
     await page.getByRole("button", { name: "Lock", exact: true }).click();
     await expect(cards).toHaveCount(2);
@@ -14,6 +14,60 @@ test.describe("Shell: directory, navigation, static pages", () => {
     await expect(cards).toHaveCount(11);
     await a11y(page);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  });
+
+  test("S01-L1 the landing sections are there, in order, and say what the product cannot do @smoke @phone", async ({ page }) => {
+    await page.goto("/");
+    const headings = page.locator("main h2");
+    await expect(headings).toHaveText(["Free, until the last step", "How it works", "What is different", "What it costs", "What it does not do", "Questions", "Fix a PDF now"]);
+    await expect(page.getByRole("heading", { name: "Free PDF tools. Nothing to pay, nothing uploaded." })).toBeVisible();
+    await expect(page.getByText("Convert PDFs to Word, Excel or PowerPoint")).toBeVisible();
+    await expect(page.getByText("There is one plan and it is free.")).toBeVisible();
+  });
+
+  test("S01-L2 the questions open and close with the keyboard @phone", async ({ page }) => {
+    await page.goto("/");
+    const first = page.getByText("Is it really free? Who pays for it?");
+    const answer = page.getByText(/Yes\. Your own device does the work/);
+    await expect(answer).toBeHidden();
+    await first.focus();
+    await page.keyboard.press("Enter");
+    await expect(answer).toBeVisible();
+    await page.keyboard.press("Enter");
+    await expect(answer).toBeHidden();
+  });
+
+  test("S01-L3 the closing button goes to Merge, and every link on the landing page works", async ({ page }) => {
+    await page.goto("/");
+    const hrefs = await page.locator("main a[href]").evaluateAll((links) => [...new Set(links.map((a) => a.getAttribute("href")!))]);
+    for (const href of hrefs) expect((await page.request.get(href)).status(), href).toBe(200);
+    await page.getByRole("link", { name: "Start with Merge" }).click();
+    await expect(page).toHaveURL(/\/merge$/);
+  });
+
+  test("S01-L4 no mention of any other product, and no invented proof on the page", async ({ page }) => {
+    await page.goto("/");
+    const text = (await page.locator("body").innerText()).toLowerCase();
+    // The names are put together from pieces so this file does not itself carry another product's name.
+    const others = [["ilove", "pdf"], ["i love ", "pdf"], ["small", "pdf"], ["sej", "da"], ["pdf", "24"]].map((parts) => parts.join(""));
+    for (const banned of [...others, "testimonial", "trusted by", "million users", "★"]) expect(text, banned).not.toContain(banned);
+  });
+
+  test("S01-M1 search and sharing: sitemap, robots, share image and tags are in place", async ({ page }) => {
+    await page.goto("/");
+    await expect(page.locator('link[rel="canonical"]')).toHaveAttribute("href", /https:\/\/.+/);
+    await expect(page.locator('meta[property="og:title"]')).toHaveAttribute("content", /Foldhand/);
+    await expect(page.locator('meta[name="twitter:card"]')).toHaveAttribute("content", "summary_large_image");
+    const image = await page.locator('meta[property="og:image"]').getAttribute("content");
+    const res = await page.request.get(new URL(image!, page.url()).pathname + new URL(image!, page.url()).search);
+    expect(res.status()).toBe(200);
+    expect(res.headers()["content-type"]).toContain("image/png");
+    const sitemap = await (await page.request.get("/sitemap.xml")).text();
+    expect(sitemap.match(/<loc>/g)).toHaveLength(15);
+    for (const slug of ["merge", "unlock", "help", "privacy", "terms"]) expect(sitemap).toContain(`/${slug}</loc>`);
+    const robots = await (await page.request.get("/robots.txt")).text();
+    expect(robots).toContain("Sitemap: ");
+    expect(robots).toContain("Allow: /");
   });
 
   test("S02-H1 every tool page opens with its own title and a way to add files", async ({ page }) => {
